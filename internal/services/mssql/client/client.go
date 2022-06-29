@@ -2,6 +2,8 @@ package client
 
 import (
 	"github.com/Azure/azure-sdk-for-go/services/preview/sql/mgmt/v5.0/sql"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/sqlvirtualmachine/2022-02-01/availabilitygrouplisteners"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/sqlvirtualmachine/2022-02-01/sqlvirtualmachinegroups"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/sqlvirtualmachine/2022-02-01/sqlvirtualmachines"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/common"
 )
@@ -39,7 +41,9 @@ type Client struct {
 	ServerVulnerabilityAssessmentsClient               *sql.ServerVulnerabilityAssessmentsClient
 	ServersClient                                      *sql.ServersClient
 	TransparentDataEncryptionsClient                   *sql.TransparentDataEncryptionsClient
+	VirtualMachinesAvailabilityGroupListenersClient    *availabilitygrouplisteners.AvailabilityGroupListenersClient
 	VirtualMachinesClient                              *sqlvirtualmachines.SqlVirtualMachinesClient
+	VirtualMachineGroupsClient                         *sqlvirtualmachinegroups.SqlVirtualMachineGroupsClient
 	VirtualNetworkRulesClient                          *sql.VirtualNetworkRulesClient
 }
 
@@ -140,8 +144,14 @@ func NewClient(o *common.ClientOptions) *Client {
 	transparentDataEncryptionsClient := sql.NewTransparentDataEncryptionsClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
 	o.ConfigureClient(&transparentDataEncryptionsClient.Client, o.ResourceManagerAuthorizer)
 
+	virtualMachinesAvailabilityGroupListenersClient := availabilitygrouplisteners.NewAvailabilityGroupListenersClientWithBaseURI(o.ResourceManagerEndpoint)
+	o.ConfigureClient(&virtualMachinesAvailabilityGroupListenersClient.Client, o.ResourceManagerAuthorizer)
+
 	virtualMachinesClient := sqlvirtualmachines.NewSqlVirtualMachinesClientWithBaseURI(o.ResourceManagerEndpoint)
 	o.ConfigureClient(&virtualMachinesClient.Client, o.ResourceManagerAuthorizer)
+
+	virtualMachineGroupsClient := sqlvirtualmachinegroups.NewSqlVirtualMachineGroupsClientWithBaseURI(o.ResourceManagerEndpoint)
+	o.ConfigureClient(&virtualMachineGroupsClient.Client, o.ResourceManagerAuthorizer)
 
 	virtualNetworkRulesClient := sql.NewVirtualNetworkRulesClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
 	o.ConfigureClient(&virtualNetworkRulesClient.Client, o.ResourceManagerAuthorizer)
@@ -179,7 +189,9 @@ func NewClient(o *common.ClientOptions) *Client {
 		ServerVulnerabilityAssessmentsClient:            &serverVulnerabilityAssessmentsClient,
 		ServersClient:                                   &serversClient,
 		TransparentDataEncryptionsClient:                &transparentDataEncryptionsClient,
+		VirtualMachinesAvailabilityGroupListenersClient: &virtualMachinesAvailabilityGroupListenersClient,
 		VirtualMachinesClient:                           &virtualMachinesClient,
+		VirtualMachineGroupsClient:                      &virtualMachineGroupsClient,
 		VirtualNetworkRulesClient:                       &virtualNetworkRulesClient,
 	}
 }
