@@ -17,7 +17,7 @@ import (
 type MsSqlVirtualMachineAvailabilityGroupListenerResource struct{}
 
 func TestAccMsSqlVirtualMachineAvailabilityGroupListenerResource_basic(t *testing.T) {
-	data := acceptance.BuildTestData(t, "azurerm_mssql_virtual_machine_group", "test")
+	data := acceptance.BuildTestData(t, "azurerm_mssql_virtual_machine_availability_group_listener", "test")
 	r := MsSqlVirtualMachineAvailabilityGroupListenerResource{}
 
 	data.ResourceTest(t, r, []acceptance.TestStep{
