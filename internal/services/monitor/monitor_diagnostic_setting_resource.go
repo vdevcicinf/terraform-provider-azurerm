@@ -99,6 +99,7 @@ func resourceMonitorDiagnosticSetting() *pluginsdk.Resource {
 			"log": {
 				Type:     pluginsdk.TypeSet,
 				Optional: true,
+				Computed: true,
 				Elem: &pluginsdk.Resource{
 					Schema: map[string]*pluginsdk.Schema{
 						"category": {

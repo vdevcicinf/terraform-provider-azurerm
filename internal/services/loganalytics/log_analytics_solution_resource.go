@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/services/preview/operationsmanagement/mgmt/2015-11-01-preview/operationsmanagement"
 	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/operationsmanagement/2015-11-01-preview/solution"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/azure"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
@@ -28,7 +29,7 @@ func resourceLogAnalyticsSolution() *pluginsdk.Resource {
 		Update: resourceLogAnalyticsSolutionCreateUpdate,
 		Delete: resourceLogAnalyticsSolutionDelete,
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			_, err := loganalyticsParse.LogAnalyticsSolutionID(id)
+			_, err := solution.ParseLogAnalyticsSolutionID(id)
 			return err
 		}),
 

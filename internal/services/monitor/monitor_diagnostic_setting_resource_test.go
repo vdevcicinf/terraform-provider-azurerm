@@ -486,12 +486,6 @@ resource "azurerm_monitor_diagnostic_setting" "test" {
     }
   }
 
-  metric {
-    category = "AllMetrics"
-    retention_policy {
-      enabled = false
-    }
-  }
 }
 `, data.RandomInteger, data.Locations.Primary)
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/services/operationalinsights/mgmt/2020-08-01/operationalinsights"
 	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/operationalinsights/2020-08-01/workspaces"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/azure"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
@@ -32,7 +33,7 @@ func resourceLogAnalyticsWorkspace() *pluginsdk.Resource {
 		CustomizeDiff: pluginsdk.CustomizeDiffShim(resourceLogAnalyticsWorkspaceCustomDiff),
 
 		Importer: pluginsdk.ImporterValidatingResourceId(func(id string) error {
-			_, err := parse.LogAnalyticsWorkspaceID(id)
+			_, err := workspaces.ParseWorkspaceID(id)
 			return err
 		}),
 
@@ -79,13 +80,13 @@ func resourceLogAnalyticsWorkspace() *pluginsdk.Resource {
 				Optional: true,
 				Computed: true,
 				ValidateFunc: validation.StringInSlice([]string{
-					string(operationalinsights.WorkspaceSkuNameEnumFree),
-					string(operationalinsights.WorkspaceSkuNameEnumPerGB2018),
-					string(operationalinsights.WorkspaceSkuNameEnumPerNode),
-					string(operationalinsights.WorkspaceSkuNameEnumPremium),
-					string(operationalinsights.WorkspaceSkuNameEnumStandalone),
-					string(operationalinsights.WorkspaceSkuNameEnumStandard),
-					string(operationalinsights.WorkspaceSkuNameEnumCapacityReservation),
+					string(workspaces.WorkspaceSkuNameEnumFree),
+					string(workspaces.WorkspaceSkuNameEnumPerGBTwoZeroOneEight),
+					string(workspaces.WorkspaceSkuNameEnumPerNode),
+					string(workspaces.WorkspaceSkuNameEnumPremium),
+					string(workspaces.WorkspaceSkuNameEnumStandalone),
+					string(workspaces.WorkspaceSkuNameEnumStandard),
+					string(workspaces.WorkspaceSkuNameEnumCapacityReservation),
 					"Unlimited", // TODO check if this is actually no longer valid, removed in v28.0.0 of the SDK
 				}, false),
 			},
@@ -164,52 +165,54 @@ func resourceLogAnalyticsWorkspaceCreateUpdate(d *pluginsdk.ResourceData, meta i
 	var isLACluster bool
 	name := d.Get("name").(string)
 	resourceGroup := d.Get("resource_group_name").(string)
-	id := parse.NewLogAnalyticsWorkspaceID(subscriptionId, resourceGroup, name)
+	id := workspaces.NewWorkspaceID(subscriptionId, resourceGroup, name)
 
 	if d.IsNewResource() {
-		existing, err := client.Get(ctx, resourceGroup, name)
+		existing, err := client.Get(ctx, id)
 		if err != nil {
-			if !utils.ResponseWasNotFound(existing.Response) {
+			if !response.WasNotFound(existing.HttpResponse) {
 				return fmt.Errorf("checking for presence of existing Log Analytics Workspace %q (Resource Group %q): %s", name, resourceGroup, err)
 			}
 		}
 
-		if !utils.ResponseWasNotFound(existing.Response) {
+		if !response.WasNotFound(existing.HttpResponse) {
 			return tf.ImportAsExistsError("azurerm_log_analytics_workspace", id.ID())
 		}
 	}
 
 	location := azure.NormalizeLocation(d.Get("location").(string))
 	skuName := d.Get("sku").(string)
-	sku := &operationalinsights.WorkspaceSku{
-		Name: operationalinsights.WorkspaceSkuNameEnum(skuName),
+	sku := &workspaces.WorkspaceSku{
+		Name: workspaces.WorkspaceSkuNameEnum(skuName),
 	}
 
 	// (@WodansSon) - If the workspace is connected to a cluster via the linked service resource
 	// the workspace SKU cannot be modified since the linked service owns the sku value within
 	// the workspace once it is linked
 	if !d.IsNewResource() {
-		resp, err := client.Get(ctx, id.ResourceGroup, id.WorkspaceName)
+		resp, err := client.Get(ctx, id)
 		if err == nil {
-			if azSku := resp.Sku; azSku != nil {
-				if strings.EqualFold(string(azSku.Name), "lacluster") {
-					isLACluster = true
-					log.Printf("[INFO] Log Analytics Workspace %q (Resource Group %q): SKU is linked to Log Analytics cluster", name, resourceGroup)
+			if resp.Model != nil && resp.Model.Properties != nil {
+				if azSku := resp.Model.Properties.Sku; azSku != nil {
+					if strings.EqualFold(string(azSku.Name), "lacluster") {
+						isLACluster = true
+						log.Printf("[INFO] Log Analytics Workspace %q (Resource Group %q): SKU is linked to Log Analytics cluster", name, resourceGroup)
+					}
 				}
 			}
 		}
 	}
 
-	internetIngestionEnabled := operationalinsights.Disabled
+	internetIngestionEnabled := workspaces.PublicNetworkAccessTypeDisabled
 	if d.Get("internet_ingestion_enabled").(bool) {
-		internetIngestionEnabled = operationalinsights.Enabled
+		internetIngestionEnabled = workspaces.PublicNetworkAccessTypeEnabled
 	}
-	internetQueryEnabled := operationalinsights.Disabled
+	internetQueryEnabled := workspaces.PublicNetworkAccessTypeDisabled
 	if d.Get("internet_query_enabled").(bool) {
-		internetQueryEnabled = operationalinsights.Enabled
+		internetQueryEnabled = workspaces.PublicNetworkAccessTypeEnabled
 	}
 
-	retentionInDays := int32(d.Get("retention_in_days").(int))
+	retentionInDays := int64(d.Get("retention_in_days").(int))
 
 	t := d.Get("tags").(map[string]interface{})
 
@@ -217,26 +220,26 @@ func resourceLogAnalyticsWorkspaceCreateUpdate(d *pluginsdk.ResourceData, meta i
 		sku.Name = "lacluster"
 	} else if skuName == "" {
 		// Default value if sku is not defined
-		sku.Name = operationalinsights.WorkspaceSkuNameEnumPerGB2018
+		sku.Name = workspaces.WorkspaceSkuNameEnumPerGBTwoZeroOneEight
 	}
 
-	parameters := operationalinsights.Workspace{
+	parameters := workspaces.Workspace{
 		Name:     &name,
-		Location: &location,
-		Tags:     tags.Expand(t),
-		WorkspaceProperties: &operationalinsights.WorkspaceProperties{
+		Location: location,
+		Tags:     expandTags(t),
+		Properties: &workspaces.WorkspaceProperties{
 			Sku:                             sku,
-			PublicNetworkAccessForIngestion: internetIngestionEnabled,
-			PublicNetworkAccessForQuery:     internetQueryEnabled,
+			PublicNetworkAccessForIngestion: &internetIngestionEnabled,
+			PublicNetworkAccessForQuery:     &internetQueryEnabled,
 			RetentionInDays:                 &retentionInDays,
 		},
 	}
 
 	dailyQuotaGb, ok := d.GetOk("daily_quota_gb")
-	if ok && strings.EqualFold(skuName, string(operationalinsights.WorkspaceSkuNameEnumFree)) && (dailyQuotaGb != -1 && dailyQuotaGb != 0.5) {
+	if ok && strings.EqualFold(skuName, string(workspaces.WorkspaceSkuNameEnumFree)) && (dailyQuotaGb != -1 && dailyQuotaGb != 0.5) {
 		return fmt.Errorf("`Free` tier SKU quota is not configurable and is hard set to 0.5GB")
-	} else if !strings.EqualFold(skuName, string(operationalinsights.WorkspaceSkuNameEnumFree)) {
-		parameters.WorkspaceProperties.WorkspaceCapping = &operationalinsights.WorkspaceCapping{
+	} else if !strings.EqualFold(skuName, string(workspaces.WorkspaceSkuNameEnumFree)) {
+		parameters.Properties.WorkspaceCapping = &workspaces.WorkspaceCapping{
 			DailyQuotaGb: utils.Float(dailyQuotaGb.(float64)),
 		}
 	}
@@ -245,7 +248,7 @@ func resourceLogAnalyticsWorkspaceCreateUpdate(d *pluginsdk.ResourceData, meta i
 	capacityReservationLevel, ok := d.GetOk(propName)
 	if ok {
 		if strings.EqualFold(skuName, string(operationalinsights.WorkspaceSkuNameEnumCapacityReservation)) {
-			parameters.WorkspaceProperties.Sku.CapacityReservationLevel = utils.Int32((int32(capacityReservationLevel.(int))))
+			parameters.Properties.Sku.CapacityReservationLevel = utils.Int64((int64(capacityReservationLevel.(int))))
 		} else {
 			return fmt.Errorf("`%s` can only be used with the `CapacityReservation` SKU", propName)
 		}
@@ -255,12 +258,8 @@ func resourceLogAnalyticsWorkspaceCreateUpdate(d *pluginsdk.ResourceData, meta i
 		}
 	}
 
-	future, err := client.CreateOrUpdate(ctx, resourceGroup, name, parameters)
+	err := client.CreateOrUpdateThenPoll(ctx, id, parameters)
 	if err != nil {
-		return err
-	}
-
-	if err = future.WaitForCompletionRef(ctx, client.Client); err != nil {
 		return err
 	}
 
@@ -274,28 +273,28 @@ func resourceLogAnalyticsWorkspaceRead(d *pluginsdk.ResourceData, meta interface
 	sharedKeysClient := meta.(*clients.Client).LogAnalytics.SharedKeysClient
 	ctx, cancel := timeouts.ForRead(meta.(*clients.Client).StopContext, d)
 	defer cancel()
-	id, err := parse.LogAnalyticsWorkspaceID(d.Id())
+	id, err := workspaces.ParseWorkspaceID(d.Id())
 	if err != nil {
 		return err
 	}
 
-	resp, err := client.Get(ctx, id.ResourceGroup, id.WorkspaceName)
+	resp, err := client.Get(ctx, *id)
 	if err != nil {
-		if utils.ResponseWasNotFound(resp.Response) {
+		if response.WasNotFound(resp.HttpResponse) {
 			d.SetId("")
 			return nil
 		}
 		return fmt.Errorf("making Read request on AzureRM Log Analytics workspaces '%s': %+v", id.WorkspaceName, err)
 	}
 
-	d.Set("name", resp.Name)
-	d.Set("resource_group_name", id.ResourceGroup)
+	d.Set("name", id.WorkspaceName)
+	d.Set("resource_group_name", id.ResourceGroupName)
 	if location := resp.Location; location != nil {
 		d.Set("location", azure.NormalizeLocation(*location))
 	}
 
-	d.Set("internet_ingestion_enabled", resp.PublicNetworkAccessForIngestion == operationalinsights.Enabled)
-	d.Set("internet_query_enabled", resp.PublicNetworkAccessForQuery == operationalinsights.Enabled)
+	d.Set("internet_ingestion_enabled", resp.PublicNetworkAccessForIngestion == workspaces.PublicNetworkAccessTypeEnabled)
+	d.Set("internet_query_enabled", resp.PublicNetworkAccessForQuery == workspaces.PublicNetworkAccessTypeEnabled)
 
 	d.Set("workspace_id", resp.CustomerID)
 	skuName := ""
