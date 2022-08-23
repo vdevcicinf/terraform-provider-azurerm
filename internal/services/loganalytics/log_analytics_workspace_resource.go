@@ -7,14 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/services/operationalinsights/mgmt/2020-08-01/operationalinsights"
 	"github.com/hashicorp/go-azure-helpers/lang/response"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/operationalinsights/2020-08-01/workspaces"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/azure"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/loganalytics/migration"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/loganalytics/parse"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/services/loganalytics/validate"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tags"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
@@ -247,13 +245,13 @@ func resourceLogAnalyticsWorkspaceCreateUpdate(d *pluginsdk.ResourceData, meta i
 	propName := "reservation_capacity_in_gb_per_day"
 	capacityReservationLevel, ok := d.GetOk(propName)
 	if ok {
-		if strings.EqualFold(skuName, string(operationalinsights.WorkspaceSkuNameEnumCapacityReservation)) {
+		if strings.EqualFold(skuName, string(workspaces.WorkspaceSkuNameEnumCapacityReservation)) {
 			parameters.Properties.Sku.CapacityReservationLevel = utils.Int64((int64(capacityReservationLevel.(int))))
 		} else {
 			return fmt.Errorf("`%s` can only be used with the `CapacityReservation` SKU", propName)
 		}
 	} else {
-		if strings.EqualFold(skuName, string(operationalinsights.WorkspaceSkuNameEnumCapacityReservation)) {
+		if strings.EqualFold(skuName, string(workspaces.WorkspaceSkuNameEnumCapacityReservation)) {
 			return fmt.Errorf("`%s` must be set when using the `CapacityReservation` SKU", propName)
 		}
 	}
@@ -270,7 +268,6 @@ func resourceLogAnalyticsWorkspaceCreateUpdate(d *pluginsdk.ResourceData, meta i
 
 func resourceLogAnalyticsWorkspaceRead(d *pluginsdk.ResourceData, meta interface{}) error {
 	client := meta.(*clients.Client).LogAnalytics.WorkspacesClient
-	sharedKeysClient := meta.(*clients.Client).LogAnalytics.SharedKeysClient
 	ctx, cancel := timeouts.ForRead(meta.(*clients.Client).StopContext, d)
 	defer cancel()
 	id, err := workspaces.ParseWorkspaceID(d.Id())
@@ -289,67 +286,101 @@ func resourceLogAnalyticsWorkspaceRead(d *pluginsdk.ResourceData, meta interface
 
 	d.Set("name", id.WorkspaceName)
 	d.Set("resource_group_name", id.ResourceGroupName)
-	if location := resp.Location; location != nil {
-		d.Set("location", azure.NormalizeLocation(*location))
-	}
 
-	d.Set("internet_ingestion_enabled", resp.PublicNetworkAccessForIngestion == workspaces.PublicNetworkAccessTypeEnabled)
-	d.Set("internet_query_enabled", resp.PublicNetworkAccessForQuery == workspaces.PublicNetworkAccessTypeEnabled)
+	if model := resp.Model; model != nil {
+		if props := model.Properties; props != nil {
 
-	d.Set("workspace_id", resp.CustomerID)
-	skuName := ""
-	if sku := resp.Sku; sku != nil {
-		for _, v := range operationalinsights.PossibleSkuNameEnumValues() {
-			if strings.EqualFold(string(v), string(sku.Name)) {
-				skuName = string(v)
+			internetIngestionEnabled := true
+			if props.PublicNetworkAccessForIngestion != nil {
+				internetIngestionEnabled = *props.PublicNetworkAccessForIngestion == workspaces.PublicNetworkAccessTypeEnabled
+			}
+			d.Set("internet_ingestion_enabled", internetIngestionEnabled)
+
+			internetQueryEnabled := true
+			if props.PublicNetworkAccessForQuery != nil {
+				internetQueryEnabled = *props.PublicNetworkAccessForQuery == workspaces.PublicNetworkAccessTypeEnabled
+			}
+			d.Set("internet_query_enabled", internetQueryEnabled)
+
+			customerId := ""
+			if props.CustomerId != nil {
+				customerId = *props.CustomerId
+			}
+			d.Set("workspace_id", customerId)
+
+			skuName := ""
+			if props.Sku != nil {
+				sku := *props.Sku
+				for _, v := range workspaces.PossibleValuesForWorkspaceSkuNameEnum() {
+					if strings.EqualFold(v, string(sku.Name)) {
+						skuName = v
+					}
+
+				}
+				if capacityReservationLevel := sku.CapacityReservationLevel; capacityReservationLevel != nil {
+					d.Set("reservation_capacity_in_gb_per_day", capacityReservationLevel)
+				}
+			}
+			d.Set("sku", skuName)
+
+			var retentionInDays int64
+			if props.RetentionInDays != nil {
+				retentionInDays = *props.RetentionInDays
+			}
+			d.Set("retention_in_days", retentionInDays)
+
+			if strings.EqualFold(skuName, string(workspaces.WorkspaceSkuNameEnumFree)) {
+				// Special case for "Free" tier
+				d.Set("daily_quota_gb", utils.Float(0.5))
+			} else if props.WorkspaceCapping != nil && props.WorkspaceCapping.DailyQuotaGb != nil {
+				d.Set("daily_quota_gb", *props.WorkspaceCapping.DailyQuotaGb)
+			} else {
+				d.Set("daily_quota_gb", utils.Float(-1))
+			}
+
+			sharedKeysResp, err := client.SharedKeysGetSharedKeys(ctx, *id)
+			if err != nil {
+				log.Printf("[ERROR] Unable to List Shared keys for Log Analytics workspaces %s: %+v", id.WorkspaceName, err)
+			} else {
+				if sharedKeysModel := sharedKeysResp.Model; sharedKeysModel != nil {
+					primarySharedKey := ""
+					if sharedKeysModel.PrimarySharedKey != nil {
+						primarySharedKey = *sharedKeysModel.PrimarySharedKey
+					}
+					d.Set("primary_shared_key", primarySharedKey)
+
+					secondarySharedKey := ""
+					if sharedKeysModel.SecondarySharedKey != nil {
+						secondarySharedKey = *sharedKeysModel.SecondarySharedKey
+					}
+					d.Set("secondary_shared_key", secondarySharedKey)
+				}
 			}
 		}
 
-		if capacityReservationLevel := sku.CapacityReservationLevel; capacityReservationLevel != nil {
-			d.Set("reservation_capacity_in_gb_per_day", capacityReservationLevel)
+		d.Set("location", azure.NormalizeLocation(model.Location))
+
+		if err = tags.FlattenAndSet(d, flattenTags(model.Tags)); err != nil {
+			return err
 		}
 	}
-	d.Set("sku", skuName)
-
-	d.Set("retention_in_days", resp.RetentionInDays)
-	if resp.WorkspaceProperties != nil && resp.WorkspaceProperties.Sku != nil && strings.EqualFold(string(resp.WorkspaceProperties.Sku.Name), string(operationalinsights.WorkspaceSkuNameEnumFree)) {
-		// Special case for "Free" tier
-		d.Set("daily_quota_gb", utils.Float(0.5))
-	} else if workspaceCapping := resp.WorkspaceCapping; workspaceCapping != nil {
-		d.Set("daily_quota_gb", resp.WorkspaceCapping.DailyQuotaGb)
-	} else {
-		d.Set("daily_quota_gb", utils.Float(-1))
-	}
-
-	sharedKeys, err := sharedKeysClient.GetSharedKeys(ctx, id.ResourceGroup, id.WorkspaceName)
-	if err != nil {
-		log.Printf("[ERROR] Unable to List Shared keys for Log Analytics workspaces %s: %+v", id.WorkspaceName, err)
-	} else {
-		d.Set("primary_shared_key", sharedKeys.PrimarySharedKey)
-		d.Set("secondary_shared_key", sharedKeys.SecondarySharedKey)
-	}
-
-	return tags.FlattenAndSet(d, resp.Tags)
+	return nil
 }
 
 func resourceLogAnalyticsWorkspaceDelete(d *pluginsdk.ResourceData, meta interface{}) error {
 	client := meta.(*clients.Client).LogAnalytics.WorkspacesClient
 	ctx, cancel := timeouts.ForDelete(meta.(*clients.Client).StopContext, d)
 	defer cancel()
-	id, err := parse.LogAnalyticsWorkspaceID(d.Id())
+
+	id, err := workspaces.ParseWorkspaceID(d.Id())
 	if err != nil {
 		return err
 	}
+
 	PermanentlyDeleteOnDestroy := meta.(*clients.Client).Features.LogAnalyticsWorkspace.PermanentlyDeleteOnDestroy
-	future, err := client.Delete(ctx, id.ResourceGroup, id.WorkspaceName, utils.Bool(PermanentlyDeleteOnDestroy))
+	err = client.DeleteThenPoll(ctx, *id, workspaces.DeleteOperationOptions{Force: utils.Bool(PermanentlyDeleteOnDestroy)})
 	if err != nil {
 		return fmt.Errorf("issuing AzureRM delete request for Log Analytics Workspaces '%s': %+v", id.WorkspaceName, err)
-	}
-
-	if err = future.WaitForCompletionRef(ctx, client.Client); err != nil {
-		if !response.WasNotFound(future.Response()) {
-			return fmt.Errorf("waiting for deletion of Log Analytics Worspace %q (Resource Group %q): %+v", id.WorkspaceName, id.ResourceGroup, err)
-		}
 	}
 
 	return nil
@@ -357,7 +388,7 @@ func resourceLogAnalyticsWorkspaceDelete(d *pluginsdk.ResourceData, meta interfa
 
 func dailyQuotaGbDiffSuppressFunc(_, _, _ string, d *pluginsdk.ResourceData) bool {
 	// (@jackofallops) - 'free' is a legacy special case that is always set to 0.5GB
-	if skuName := d.Get("sku").(string); strings.EqualFold(skuName, string(operationalinsights.WorkspaceSkuNameEnumFree)) {
+	if skuName := d.Get("sku").(string); strings.EqualFold(skuName, string(workspaces.WorkspaceSkuNameEnumFree)) {
 		return true
 	}
 

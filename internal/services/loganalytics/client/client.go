@@ -1,8 +1,6 @@
 package client
 
 import (
-	"github.com/Azure/azure-sdk-for-go/services/operationalinsights/mgmt/2020-08-01/operationalinsights"
-	"github.com/Azure/azure-sdk-for-go/services/preview/operationsmanagement/mgmt/2015-11-01-preview/operationsmanagement"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/operationalinsights/2019-09-01/querypacks"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/operationalinsights/2020-08-01/clusters"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/operationalinsights/2020-08-01/dataexport"
@@ -12,6 +10,7 @@ import (
 	"github.com/hashicorp/go-azure-sdk/resource-manager/operationalinsights/2020-08-01/savedsearches"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/operationalinsights/2020-08-01/storageinsights"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/operationalinsights/2020-08-01/workspaces"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/operationsmanagement/2015-11-01-preview/solution"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/common"
 )
 
@@ -23,8 +22,7 @@ type Client struct {
 	LinkedStorageAccountClient *linkedstorageaccounts.LinkedStorageAccountsClient
 	QueryPacksClient           *querypacks.QueryPacksClient
 	SavedSearchesClient        *savedsearches.SavedSearchesClient
-	SharedKeysClient           *operationalinsights.SharedKeysClient
-	SolutionsClient            *operationsmanagement.SolutionsClient
+	SolutionsClient            *solution.SolutionClient
 	StorageInsightsClient      *storageinsights.StorageInsightsClient
 	WorkspacesClient           *workspaces.WorkspacesClient
 }
@@ -45,10 +43,7 @@ func NewClient(o *common.ClientOptions) *Client {
 	SavedSearchesClient := savedsearches.NewSavedSearchesClientWithBaseURI(o.ResourceManagerEndpoint)
 	o.ConfigureClient(&SavedSearchesClient.Client, o.ResourceManagerAuthorizer)
 
-	SharedKeysClient := operationalinsights.NewSharedKeysClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
-	o.ConfigureClient(&SharedKeysClient.Client, o.ResourceManagerAuthorizer)
-
-	SolutionsClient := operationsmanagement.NewSolutionsClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId, "Microsoft.OperationsManagement", "solutions", "testing")
+	SolutionsClient := solution.NewSolutionClientWithBaseURI(o.ResourceManagerEndpoint)
 	o.ConfigureClient(&SolutionsClient.Client, o.ResourceManagerAuthorizer)
 
 	StorageInsightsClient := storageinsights.NewStorageInsightsClientWithBaseURI(o.ResourceManagerEndpoint)
@@ -71,7 +66,6 @@ func NewClient(o *common.ClientOptions) *Client {
 		LinkedStorageAccountClient: &LinkedStorageAccountClient,
 		QueryPacksClient:           &QueryPacksClient,
 		SavedSearchesClient:        &SavedSearchesClient,
-		SharedKeysClient:           &SharedKeysClient,
 		SolutionsClient:            &SolutionsClient,
 		StorageInsightsClient:      &StorageInsightsClient,
 		WorkspacesClient:           &WorkspacesClient,

@@ -8,13 +8,12 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-azure-helpers/lang/response"
+	"github.com/hashicorp/go-azure-sdk/resource-manager/operationalinsights/2020-08-01/clusters"
 	"github.com/hashicorp/go-azure-sdk/resource-manager/operationalinsights/2020-08-01/linkedservices"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/azure"
 	"github.com/hashicorp/terraform-provider-azurerm/helpers/tf"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/clients"
 	validateAuto "github.com/hashicorp/terraform-provider-azurerm/internal/services/automation/validate"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/loganalytics/parse"
-	"github.com/hashicorp/terraform-provider-azurerm/internal/services/loganalytics/validate"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/pluginsdk"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/tf/suppress"
 	"github.com/hashicorp/terraform-provider-azurerm/internal/timeouts"
@@ -52,7 +51,7 @@ func resourceLogAnalyticsLinkedService() *pluginsdk.Resource {
 
 			if d.HasChange("write_access_id") {
 				if writeAccessID := d.Get("write_access_id").(string); writeAccessID != "" {
-					if _, err := validate.LogAnalyticsClusterID(writeAccessID, "write_access_id"); err != nil {
+					if _, err := clusters.ValidateClusterID(writeAccessID, "write_access_id"); err != nil {
 						return fmt.Errorf("'write_access_id' must be a Log Analytics Cluster resource ID, got %q", writeAccessID)
 					}
 				}
@@ -142,7 +141,7 @@ func resourceLogAnalyticsLinkedServiceRead(d *pluginsdk.ResourceData, meta inter
 		return err
 	}
 
-	workspace := parse.NewLogAnalyticsWorkspaceID(subscriptionId, id.ResourceGroupName, id.WorkspaceName)
+	workspace := linkedservices.NewWorkspaceID(subscriptionId, id.ResourceGroupName, id.WorkspaceName)
 
 	resp, err := client.Get(ctx, *id)
 	if err != nil {
@@ -166,7 +165,7 @@ func resourceLogAnalyticsLinkedServiceRead(d *pluginsdk.ResourceData, meta inter
 
 		writeAccessId := ""
 		if model.Properties.WriteAccessResourceId != nil {
-			readAccessId = *model.Properties.WriteAccessResourceId
+			writeAccessId = *model.Properties.WriteAccessResourceId
 		}
 		d.Set("write_access_id", writeAccessId)
 	}
