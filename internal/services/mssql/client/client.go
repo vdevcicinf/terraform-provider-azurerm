@@ -28,6 +28,8 @@ type Client struct {
 	OutboundFirewallRulesClient                        *sql.OutboundFirewallRulesClient
 	ManagedInstanceAdministratorsClient                *sql.ManagedInstanceAdministratorsClient
 	ManagedInstanceAzureADOnlyAuthenticationsClient    *sql.ManagedInstanceAzureADOnlyAuthenticationsClient
+	ManagedInstanceEncryptionProtectorClient           *sql.ManagedInstanceEncryptionProtectorsClient
+	ManagedInstanceKeysClient                          *sql.ManagedInstanceKeysClient
 	ReplicationLinksClient                             *sql.ReplicationLinksClient
 	RestorableDroppedDatabasesClient                   *sql.RestorableDroppedDatabasesClient
 	ServerAzureADAdministratorsClient                  *sql.ServerAzureADAdministratorsClient
@@ -106,6 +108,12 @@ func NewClient(o *common.ClientOptions) *Client {
 	managedInstanceServerSecurityAlertPoliciesClient := sql.NewManagedServerSecurityAlertPoliciesClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
 	o.ConfigureClient(&managedInstanceServerSecurityAlertPoliciesClient.Client, o.ResourceManagerAuthorizer)
 
+	managedInstanceEncryptionProtectorClient := sql.NewManagedInstanceEncryptionProtectorsClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
+	o.ConfigureClient(&managedInstanceEncryptionProtectorClient.Client, o.ResourceManagerAuthorizer)
+
+	managedInstanceKeyClient := sql.NewManagedInstanceKeysClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
+	o.ConfigureClient(&managedInstanceKeyClient.Client, o.ResourceManagerAuthorizer)
+
 	outboundFirewallRulesClient := sql.NewOutboundFirewallRulesClientWithBaseURI(o.ResourceManagerEndpoint, o.SubscriptionId)
 	o.ConfigureClient(&outboundFirewallRulesClient.Client, o.ResourceManagerAuthorizer)
 
@@ -175,6 +183,8 @@ func NewClient(o *common.ClientOptions) *Client {
 		ManagedInstancesClient:                           &managedInstancesClient,
 		ManagedInstanceVulnerabilityAssessmentsClient:    &managedInstanceVulnerabilityAssessmentsClient,
 		ManagedInstanceServerSecurityAlertPoliciesClient: &managedInstanceServerSecurityAlertPoliciesClient,
+		ManagedInstanceEncryptionProtectorClient:         &managedInstanceEncryptionProtectorClient,
+		ManagedInstanceKeysClient:                        &managedInstanceKeyClient,
 		OutboundFirewallRulesClient:                      &outboundFirewallRulesClient,
 		ReplicationLinksClient:                           &replicationLinksClient,
 		RestorableDroppedDatabasesClient:                 &restorableDroppedDatabasesClient,
