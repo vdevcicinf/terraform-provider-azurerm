@@ -93,12 +93,11 @@ func (r MsSqlManagedInstanceTransparentDataEncryptionResource) Create() sdk.Reso
 			managedInstanceKeyType := sql.ServerKeyTypeServiceManaged
 			var managedInstanceKey sql.ManagedInstanceKey
 			keyVaultKeyId := strings.TrimSpace(model.KeyVaultKeyId)
+
 			// If it has content, then we assume it's a key vault key id
 			if keyVaultKeyId != "" {
-				// Update the server key type to AKV
-				managedInstanceKeyType = sql.ServerKeyTypeAzureKeyVault
 
-				// Set the SQL Server Key properties
+				managedInstanceKeyType = sql.ServerKeyTypeAzureKeyVault
 				managedInstanceKeyProperties := sql.ManagedInstanceKeyProperties{
 					ServerKeyType:       sql.ServerKeyTypeAzureKeyVault,
 					URI:                 &keyVaultKeyId,
@@ -106,7 +105,6 @@ func (r MsSqlManagedInstanceTransparentDataEncryptionResource) Create() sdk.Reso
 				}
 				managedInstanceKey.ManagedInstanceKeyProperties = &managedInstanceKeyProperties
 
-				// Set the encryption protector properties
 				keyId, err := keyVaultParser.ParseNestedItemID(keyVaultKeyId)
 				if err != nil {
 					return fmt.Errorf("Unable to parse key: %q: %+v", keyVaultKeyId, err)
@@ -153,7 +151,7 @@ func (r MsSqlManagedInstanceTransparentDataEncryptionResource) Create() sdk.Reso
 				}
 			}
 
-			//metadata.Logger.Infof("Creating %s", id)
+			metadata.Logger.Infof("Creating %s", id)
 
 			future, err := client.CreateOrUpdate(ctx, managedInstanceId.ResourceGroup, managedInstanceId.Name, parameters)
 			if err != nil {
@@ -163,8 +161,6 @@ func (r MsSqlManagedInstanceTransparentDataEncryptionResource) Create() sdk.Reso
 			if err = future.WaitForCompletionRef(ctx, client.Client); err != nil {
 				return fmt.Errorf("waiting for creation of %s: %+v", id, err)
 			}
-			resp, err := client.Get(ctx, managedInstanceId.ResourceGroup, managedInstanceId.Name)
-			print("\nID  " + *resp.ID)
 
 			metadata.SetID(id)
 			return nil
@@ -195,12 +191,11 @@ func (r MsSqlManagedInstanceTransparentDataEncryptionResource) Update() sdk.Reso
 			managedInstanceKeyType := sql.ServerKeyTypeServiceManaged
 			var managedInstanceKey sql.ManagedInstanceKey
 			keyVaultKeyId := strings.TrimSpace(model.KeyVaultKeyId)
+
 			// If it has content, then we assume it's a key vault key id
 			if keyVaultKeyId != "" {
-				// Update the server key type to AKV
-				managedInstanceKeyType = sql.ServerKeyTypeAzureKeyVault
 
-				// Set the SQL Server Key properties
+				managedInstanceKeyType = sql.ServerKeyTypeAzureKeyVault
 				managedInstanceKeyProperties := sql.ManagedInstanceKeyProperties{
 					ServerKeyType:       sql.ServerKeyTypeAzureKeyVault,
 					URI:                 &keyVaultKeyId,
@@ -208,7 +203,6 @@ func (r MsSqlManagedInstanceTransparentDataEncryptionResource) Update() sdk.Reso
 				}
 				managedInstanceKey.ManagedInstanceKeyProperties = &managedInstanceKeyProperties
 
-				// Set the encryption protector properties
 				keyId, err := keyVaultParser.ParseNestedItemID(keyVaultKeyId)
 				if err != nil {
 					return fmt.Errorf("Unable to parse key: %q: %+v", keyVaultKeyId, err)
@@ -255,20 +249,17 @@ func (r MsSqlManagedInstanceTransparentDataEncryptionResource) Update() sdk.Reso
 				}
 			}
 
-			//metadata.Logger.Infof("Creating %s", id)
+			metadata.Logger.Infof("updating %s", id)
 
 			future, err := client.CreateOrUpdate(ctx, managedInstanceId.ResourceGroup, managedInstanceId.Name, parameters)
 			if err != nil {
-				return fmt.Errorf("creating %s: %+v", id, err)
+				return fmt.Errorf("updating %s: %+v", id, err)
 			}
 
 			if err = future.WaitForCompletionRef(ctx, client.Client); err != nil {
-				return fmt.Errorf("waiting for creation of %s: %+v", id, err)
+				return fmt.Errorf("waiting for update of %s: %+v", id, err)
 			}
-			resp, err := client.Get(ctx, managedInstanceId.ResourceGroup, managedInstanceId.Name)
-			print("\nID  " + *resp.ID)
 
-			metadata.SetID(id)
 			return nil
 		},
 	}
@@ -301,6 +292,7 @@ func (r MsSqlManagedInstanceTransparentDataEncryptionResource) Read() sdk.Resour
 
 			keyVaultKeyId := ""
 			autoRotationEnabled := false
+			managedInstanceId := mssqlParse.NewManagedInstanceID(id.SubscriptionId, id.ResourceGroup, id.ManagedInstanceName)
 
 			if props := existing.ManagedInstanceEncryptionProtectorProperties; props != nil {
 				// Only set the key type if it's an AKV key. For service managed, we can omit the setting the key_vault_key_id
@@ -316,7 +308,7 @@ func (r MsSqlManagedInstanceTransparentDataEncryptionResource) Read() sdk.Resour
 				}
 			}
 			model := MsSqlManagedInstanceTransparentDataEncryptionModel{
-				ManagedInstanceId:   id.ID(),
+				ManagedInstanceId:   managedInstanceId.ID(),
 				KeyVaultKeyId:       keyVaultKeyId,
 				AutoRotationEnabled: autoRotationEnabled,
 			}

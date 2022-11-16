@@ -30,7 +30,7 @@ func TestAccMsSqlManagedInstanceTransparentDataEncryption_keyVault(t *testing.T)
 	})
 }
 
-/*func TestAccMsSqlManagedInstanceTransparentDataEncryption_autoRotate(t *testing.T) {
+func TestAccMsSqlManagedInstanceTransparentDataEncryption_autoRotate(t *testing.T) {
 	data := acceptance.BuildTestData(t, "azurerm_mssql_managed_instance_transparent_data_encryption", "test")
 	r := MsSqlManagedInstanceTransparentDataEncryptionResource{}
 
@@ -90,21 +90,21 @@ func TestAccMsSqlManagedInstanceTransparentDataEncryption_update(t *testing.T) {
 		},
 		data.ImportStep(),
 	})
-}*/
+}
 
 func (MsSqlManagedInstanceTransparentDataEncryptionResource) Exists(ctx context.Context, client *clients.Client, state *pluginsdk.InstanceState) (*bool, error) {
-	id, err := parse.EncryptionProtectorID(state.ID)
+	id, err := parse.ManagedInstanceEncryptionProtectorID(state.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := client.MSSQL.ManagedInstanceEncryptionProtectorClient.Get(ctx, id.ResourceGroup, id.ServerName)
+	resp, err := client.MSSQL.ManagedInstanceEncryptionProtectorClient.Get(ctx, id.ResourceGroup, id.ManagedInstanceName)
 	if err != nil {
 		if utils.ResponseWasNotFound(resp.Response) {
-			return nil, fmt.Errorf("Encryption protector for server %q (Resource Group %q) does not exist", id.ServerName, id.ResourceGroup)
+			return nil, fmt.Errorf("%s does not exist", *id)
 		}
 
-		return nil, fmt.Errorf("reading Encryption Protector for server %q (Resource Group %q): %v", id.ServerName, id.ResourceGroup, err)
+		return nil, fmt.Errorf("reading %s: %v", *id, err)
 	}
 
 	return utils.Bool(resp.ID != nil), nil
