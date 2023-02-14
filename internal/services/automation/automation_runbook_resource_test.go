@@ -21,7 +21,7 @@ func TestAccAutomationRunbook_PSWorkflow(t *testing.T) {
 
 	data.ResourceTest(t, r, []acceptance.TestStep{
 		{
-			Config: r.PSWorkflow(data),
+			Config: r.withJobSchedule(data),
 			Check: acceptance.ComposeTestCheckFunc(
 				check.That(data.ResourceName).ExistsInAzure(r),
 			),

@@ -1,3 +1,4 @@
+
 ---
 subcategory: "Automation"
 layout: "azurerm"
